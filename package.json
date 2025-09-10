@@ -1,5 +1,5 @@
 {
-  "name": "geosocial-backend-ts",
+  "name": "polyhistor-backend-ts",
   "version": "1.0.0",
   "description": "Real-time location tracking social app in TypeScript",
   "main": "dist/server.js",
