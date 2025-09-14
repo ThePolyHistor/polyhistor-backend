@@ -43,6 +43,10 @@ model User {
 
   refreshToken String? @unique @db.Text
 
+  isEmailVerified    Boolean   @default(false)
+  verificationCode   String?   @db.Text
+  verificationExpiry DateTime?
+
   ownedGroups Group[]       @relation("GroupOwner")
   memberships GroupMember[]
   messages    Message[]

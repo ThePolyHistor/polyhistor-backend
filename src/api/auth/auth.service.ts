@@ -1,14 +1,16 @@
 // src/api/auth/auth.service.ts
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto'; // Import the built-in crypto module
 import {PrismaClient, User} from '@prisma/client';
 import AppError from '../../utils/AppError';
 import config from '../../config';
 import {LoginDto, RegisterDto, TokenData} from './auth.types';
+import {sendVerificationEmail} from '../../services/email.service';
+import logger from '../../utils/logger';
 
 const prisma = new PrismaClient();
 
-// Helper to generate both tokens
 const generateTokens = (userId: string): TokenData => {
     // @ts-ignore
     const accessToken = jwt.sign({ id: userId }, config.jwt.secret, {
@@ -21,12 +23,96 @@ const generateTokens = (userId: string): TokenData => {
     return { accessToken, refreshToken };
 };
 
-const updateUserRefreshToken = async (userId: string, refreshToken: string) => {
-    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+const updateUserRefreshToken = async (userId: string, refreshToken: string | null) => {
+    // Allow null to clear the token on logout
+    const hashedRefreshToken = refreshToken ? await bcrypt.hash(refreshToken, 10) : null;
     await prisma.user.update({
         where: { id: userId },
         data: { refreshToken: hashedRefreshToken },
     });
+};
+
+// --- EMAIL VERIFICATION HELPERS ---
+const generateVerificationCode = () => {
+    return crypto.randomInt(100000, 999999).toString(); // 6-digit code
+};
+
+export const requestVerification = async (email: string) => {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+        throw new AppError('User with this email not found.', 404);
+    }
+    if (user.isEmailVerified) {
+        throw new AppError('Email is already verified.', 400);
+    }
+
+    const verificationCode = generateVerificationCode();
+    const verificationExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+
+    await prisma.user.update({
+        where: { email },
+        data: { verificationCode, verificationExpiry },
+    });
+
+    await sendVerificationEmail(email, verificationCode);
+};
+
+
+export const verifyUserEmail = async (email: string, code: string) => {
+    const user = await prisma.user.findFirst({
+        where: { email, verificationCode: code },
+    });
+
+    if (!user) throw new AppError('Invalid verification code.', 400);
+    if (user.verificationExpiry && user.verificationExpiry < new Date()) {
+        throw new AppError('Verification code has expired.', 400);
+    }
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            isEmailVerified: true,
+            verificationCode: null, // Clear the code after use
+            verificationExpiry: null,
+        },
+    });
+};
+
+
+// --- CORE AUTH SERVICES ---
+export const registerUser = async (userData: RegisterDto): Promise<{ user: User }> => {
+    try {
+        const { username, email, password } = userData;
+        logger.info(`Attempting to register new user with email: ${email}`);
+
+        const existingUser = await prisma.user.findFirst({
+            where: { OR: [{ email }, { username }] },
+        });
+        if (existingUser) {
+            throw new AppError('An account with this email or username already exists.', 409);
+        }
+
+        const passwordHash = await bcrypt.hash(password, 12);
+        // @ts-ignore
+        const user = await prisma.user.create({
+            data: { username, email, passwordHash },
+        });
+        logger.info(`User ${user.id} registered successfully.`);
+
+        // After creating the user, immediately request verification
+        await requestVerification(user.email);
+
+        // Return only the user object. No tokens are issued until verification.
+        return { user };
+    } catch (error: any) {
+        logger.error('Error during user registration', {
+            error: error.message,
+            stack: error.stack,
+            userData
+        });
+        throw error;
+
+    }
 };
 
 export const loginUser = async (credentials: LoginDto): Promise<{ user: User; tokens: TokenData }> => {
@@ -35,19 +121,20 @@ export const loginUser = async (credentials: LoginDto): Promise<{ user: User; to
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) throw new AppError('Invalid email or password.', 401);
 
+    if (!user.isEmailVerified) {
+        throw new AppError('Please verify your email before logging in.', 403);
+    }
+
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) throw new AppError('Invalid email or password.', 401);
 
-    // 1. Generate both tokens
     const tokens = generateTokens(user.id);
-    // 2. Hash and save the refresh token to the DB
     await updateUserRefreshToken(user.id, tokens.refreshToken);
 
     return { user, tokens };
 };
 
 export const refreshAccessToken = async (token: string): Promise<TokenData> => {
-    // 1. Verify the incoming refresh token
     let decoded: any;
     try {
         decoded = jwt.verify(token, config.jwt.secret);
@@ -55,19 +142,16 @@ export const refreshAccessToken = async (token: string): Promise<TokenData> => {
         throw new AppError('Invalid refresh token.', 401);
     }
 
-    // 2. Find the user and check if the token is valid
     const user = await prisma.user.findUnique({ where: { id: decoded.id } });
     if (!user || !user.refreshToken) {
         throw new AppError('Invalid refresh token.', 401);
     }
 
-    // 3. Compare the incoming token with the hashed token in the DB
     const isTokenMatch = await bcrypt.compare(token, user.refreshToken);
     if (!isTokenMatch) {
         throw new AppError('Invalid refresh token.', 401);
     }
 
-    // 4. Issue a new pair of tokens (Token Rotation)
     const newTokens = generateTokens(user.id);
     await updateUserRefreshToken(user.id, newTokens.refreshToken);
 
@@ -75,25 +159,5 @@ export const refreshAccessToken = async (token: string): Promise<TokenData> => {
 };
 
 export const logoutUser = async (userId: string): Promise<void> => {
-    // To log out, we simply nullify the refresh token in the database
-    await prisma.user.update({
-        where: { id: userId },
-        data: { refreshToken: null },
-    });
-};
-
-// Register function remains the same, but we will log the user in right after
-export const registerUser = async (userData: RegisterDto): Promise<{ user: User; tokens: TokenData }> => {
-    const { username, email, password } = userData;
-
-    const existingUser = await prisma.user.findFirst({
-        where: { OR: [{ email }, { username }] },
-    });
-    if (existingUser) throw new AppError('An account with this email or username already exists.', 409);
-
-    const passwordHash = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({ data: { username, email, passwordHash } });
-
-    // After registering, immediately log them in to get tokens
-    return loginUser({ email, password });
+    await updateUserRefreshToken(userId, null);
 };

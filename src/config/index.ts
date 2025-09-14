@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import logger from "../utils/logger";
+
 
 dotenv.config();
 
@@ -17,6 +19,19 @@ const config = {
     },
     corsOrigin: process.env.CORS_ORIGIN!,
 };
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', { message: error.message, stack: error.stack });
+    process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', { promise, reason });
+    process.exit(1);
+});
+
 
 // The '!' non-null assertion operator tells TypeScript that these
 // environment variables will definitely be loaded, preventing compilation
