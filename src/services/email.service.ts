@@ -1,23 +1,15 @@
 import nodemailer from 'nodemailer';
 
-// const transporter = nodemailer.createTransport({
-//     host: process.env.EMAIL_HOST,
-//     port: Number(process.env.EMAIL_PORT),
-//     secure: true,
-//     auth: {
-//         user: process.env.EMAIL_USER,
-//         pass: process.env.EMAIL_PASS,
-//     },
-// });
 const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
+    host: process.env.EMAIL_HOST,
+    port: Number(process.env.EMAIL_PORT),
+    secure: true,
     auth: {
-        user: "thepolyhistorapp@gmail.com",
-        pass: "mxzeumfgfkzgkzkw",
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
     },
 });
+
 
 export const sendVerificationEmail = async (to: string, code: string) => {
     const mailOptions = {

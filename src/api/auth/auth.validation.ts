@@ -21,3 +21,12 @@ export const login = [
         .normalizeEmail(),
     body('password').notEmpty().withMessage('Password is required.'),
 ];
+
+export const verifyEmail = [
+    body('email').isEmail().withMessage('Please enter a valid email address.').normalizeEmail(),
+    body('code').isString().isLength({ min: 6, max: 6 }).withMessage('Verification code must be 6 digits.'),
+];
+
+export const resendVerification = [
+    body('email').isEmail().withMessage('Please enter a valid email address.').normalizeEmail(),
+];
