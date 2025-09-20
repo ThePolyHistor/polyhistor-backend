@@ -30,26 +30,23 @@ enum TripStatus {
 
 // MODELS
 model User {
-  id           String   @id @default(uuid())
-  username     String   @unique @db.VarChar(50)
-  email        String   @unique @db.VarChar(255)
-  passwordHash String   @db.VarChar(255)
-  createdAt    DateTime @default(now())
-
+  id                 String       @id @default(uuid())
+  username           String       @unique @db.VarChar(50)
+  email              String       @unique @db.VarChar(255)
+  passwordHash       String       @db.VarChar(255)
+  profilePictureUrl  String?      @db.Text
+  createdAt          DateTime     @default(now())
   // PostGIS location is best handled with two floats for ORM compatibility.
   // Raw SQL queries can still be used for complex geospatial operations.
-  lastLocationLat Float?
-  lastLocationLon Float?
-
-  refreshToken String? @unique @db.Text
-
-  isEmailVerified    Boolean   @default(false)
-  verificationCode   String?   @db.Text
+  lastLocationLat    Float?
+  lastLocationLon    Float?
+  refreshToken       String?      @unique @db.Text
+  isEmailVerified    Boolean      @default(false)
+  verificationCode   String?      @db.Text
   verificationExpiry DateTime?
-
-  ownedGroups Group[]       @relation("GroupOwner")
-  memberships GroupMember[]
-  messages    Message[]
+  ownedGroups        Group[]      @relation("GroupOwner")
+  memberships        GroupMember[]
+  messages           Message[]
 
   // For friendships table
   sentFriendships       Friendship[] @relation("UserOne")
@@ -67,25 +64,23 @@ model Friendship {
   actionUserId String
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
-
-  userOne    User @relation("UserOne", fields: [userOneId], references: [id], onDelete: Cascade)
-  userTwo    User @relation("UserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
-  actionUser User @relation("ActionUser", fields: [actionUserId], references: [id], onDelete: Cascade)
+  userOne      User             @relation("UserOne", fields: [userOneId], references: [id], onDelete: Cascade)
+  userTwo      User             @relation("UserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
+  actionUser   User             @relation("ActionUser", fields: [actionUserId], references: [id], onDelete: Cascade)
 
   @@id([userOneId, userTwoId])
 }
 
 model Group {
-  id          String   @id @default(uuid())
-  name        String   @db.VarChar(100)
+  id          String        @id @default(uuid())
+  name        String        @db.VarChar(100)
   description String?
   ownerId     String?
-  createdAt   DateTime @default(now())
-
-  owner    User?         @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  members  GroupMember[]
-  trips    Trip[]
-  messages Message[]
+  createdAt   DateTime      @default(now())
+  owner       User?         @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  members     GroupMember[]
+  trips       Trip[]
+  messages    Message[]
 }
 
 model GroupMember {
@@ -93,9 +88,8 @@ model GroupMember {
   groupId  String
   role     GroupRole @default(member)
   joinedAt DateTime  @default(now())
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@id([userId, groupId])
 }
@@ -108,8 +102,7 @@ model Trip {
   startTime DateTime?
   endTime   DateTime?
   createdAt DateTime   @default(now())
-
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group     Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
 }
 
 model Message {
@@ -118,9 +111,8 @@ model Message {
   userId    String
   content   String
   createdAt DateTime @default(now())
-
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([groupId])
 }

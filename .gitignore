@@ -16,6 +16,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# User-uploaded content
+/uploads
+
 # OS generated files
 .DS_Store
 .DS_Store?
