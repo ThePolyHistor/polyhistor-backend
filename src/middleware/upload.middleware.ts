@@ -1,5 +1,6 @@
+import { Request } from "express";
 import fs from "fs";
-import multer from "multer";
+import multer, { FileFilterCallback } from "multer";
 import path from "path";
 import AppError from "../utils/AppError";
 
@@ -11,10 +12,18 @@ if (!fs.existsSync(uploadDir)) {
 
 // Set up storage for uploaded files
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void
+  ) => {
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
+  filename: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void
+  ) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(
       null,
@@ -27,10 +36,13 @@ const storage = multer.diskStorage({
 export const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 1024 * 1024 * 5, // 5 MB file size limit
+    fileSize: 1024 * 1024 * 5,
   },
-  fileFilter: (req, file, cb) => {
-    // Accept images only
+  fileFilter: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: FileFilterCallback
+  ) => {
     if (!file.mimetype.startsWith("image/")) {
       return cb(new AppError("Only image files are allowed!", 400));
     }
