@@ -36,8 +36,8 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "@types/multer": "^2.0.0",
     "prisma": "^5.15.0",
-    "ts-node-dev": "^2.0.0",
-    "@types/multer": "^2.0.0"
+    "ts-node-dev": "^2.0.0"
   }
 }
